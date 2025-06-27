@@ -3,16 +3,17 @@ name: Build and Deploy to Kubernetes
 on:
   workflow_call:
     inputs:
-      registry: { required: true, type: string }
       tag: { required: true, type: string }
-      k8s_cluster_name: { required: true, type: string }
-      k8s_namespace: { required: true, type: string }
-      k8s_deployment_name: { required: true, type: string }
       subprojects: { required: false, type: string }
-      do_api_token: { required: true, type: string }
+    secrets:
+      registry: { required: true }
+      k8s_cluster_name: { required: true }
+      k8s_namespace: { required: true }
+      k8s_deployment_name: { required: true }
+      do_api_token: { required: true }
 
 env:
-  REPOSITORY: ${{ inputs.k8s_namespace }}/${{ inputs.k8s_deployment_name }}
+  REPOSITORY: ${{ secrets.k8s_namespace }}/${{ secrets.k8s_deployment_name }}
   DOCKERFILE: Dockerfile.production
 
 jobs:
@@ -42,10 +43,10 @@ jobs:
         uses: ./.github/actions/docker-buildx
         with:
           project: ${{ matrix.project }}
-          registry: ${{ inputs.registry }}
+          registry: ${{ secrets.registry }}
           repository: ${{ env.REPOSITORY }}
           tag: ${{ inputs.tag }}
-          do_api_token: ${{ inputs.do_api_token }}
+          do_api_token: ${{ secrets.do_api_token }}
 
       - name: Deploy Docker image for ${{ matrix.project }}
         uses: ./.github/actions/kube-deploy
@@ -53,7 +54,7 @@ jobs:
           project: ${{ matrix.project }}
           image: ${{ steps.build.outputs.image }}
           tag: ${{ inputs.tag }}
-          k8s_cluster_name: ${{ inputs.k8s_cluster_name }}
-          k8s_namespace: ${{ inputs.k8s_namespace }}
-          k8s_deployment_name: ${{ inputs.k8s_deployment_name }}
-          do_api_token: ${{ inputs.do_api_token }}
+          k8s_cluster_name: ${{ secrets.k8s_cluster_name }}
+          k8s_namespace: ${{ secrets.k8s_namespace }}
+          k8s_deployment_name: ${{ secrets.k8s_deployment_name }}
+          do_api_token: ${{ secrets.do_api_token }}

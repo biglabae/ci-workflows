@@ -4,10 +4,11 @@ on:
   workflow_call:
     inputs:
       project: { required: false, type: string }
-      k8s_cluster_name: { required: true, type: string }
-      k8s_namespace: { required: true, type: string }
-      k8s_deployment_name: { required: true, type: string }
-      do_api_token: { required: true, type: string }
+    secrets:
+      k8s_cluster_name: { required: true }
+      k8s_namespace: { required: true }
+      k8s_deployment_name: { required: true }
+      do_api_token: { required: true }
 
 jobs:
   rollback:
@@ -16,20 +17,20 @@ jobs:
       - name: Setup K8s connection
         uses: ./.github/actions/kube-setup
         with:
-          k8s_cluster_name: ${{ inputs.k8s_cluster_name }}
-          do_api_token: ${{ inputs.do_api_token }}
+          k8s_cluster_name: ${{ secrets.k8s_cluster_name }}
+          do_api_token: ${{ secrets.do_api_token }}
 
       - name: Set current deployment
         id: meta
         run: |
           if [[ "${{ inputs.project }}" == "root" ]]; then
-            echo "deployment=${{ inputs.k8s_deployment_name }}" >> "$GITHUB_OUTPUT"
+            echo "deployment=${{ secrets.k8s_deployment_name }}" >> "$GITHUB_OUTPUT"
           else
-            echo "deployment=${{ inputs.k8s_deployment_name }}-${{ inputs.project }}" >> "$GITHUB_OUTPUT"
+            echo "deployment=${{ secrets.k8s_deployment_name }}-${{ inputs.project }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Rollback to previous revision
         run: |
           echo "⚠️ Manual rollback initiated"
           kubectl rollout undo deployment/${{ steps.meta.outputs.deployment }} \
-            --namespace=${{ inputs.k8s_namespace }}
+            --namespace=${{ secrets.k8s_namespace }}
