@@ -1,0 +1,59 @@
+name: Build and Deploy to Kubernetes
+
+on:
+  workflow_call:
+    inputs:
+      registry: { required: true, type: string }
+      tag: { required: true, type: string }
+      k8s_cluster_name: { required: true, type: string }
+      k8s_namespace: { required: true, type: string }
+      k8s_deployment_name: { required: true, type: string }
+      subprojects: { required: false, type: string }
+      do_api_token: { required: true, type: string }
+
+env:
+  REPOSITORY: ${{ inputs.k8s_namespace }}/${{ inputs.k8s_deployment_name }}
+  DOCKERFILE: Dockerfile.production
+
+jobs:
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        run: |
+          if [[ -z "${{ inputs.subprojects }}" || "${{ inputs.subprojects }}" == "" ]]; then
+            echo 'matrix=[{"project":"root"}]' >> $GITHUB_OUTPUT
+          else
+            matrix=$(echo "${{ inputs.subprojects }}" | jq -R 'split(",") | map({ project: . })')
+            echo "matrix=$matrix" >> $GITHUB_OUTPUT
+          fi
+
+  run-matrix:
+    needs: prepare-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
+      fail-fast: false
+    steps:
+      - name: Build and push Docker image for ${{ matrix.project }}
+        id: build
+        uses: ./.github/actions/docker-buildx
+        with:
+          project: ${{ matrix.project }}
+          registry: ${{ inputs.registry }}
+          repository: ${{ env.REPOSITORY }}
+          tag: ${{ inputs.tag }}
+          do_api_token: ${{ inputs.do_api_token }}
+
+      - name: Deploy Docker image for ${{ matrix.project }}
+        uses: ./.github/actions/kube-deploy
+        with:
+          project: ${{ matrix.project }}
+          image: ${{ steps.build.outputs.image }}
+          tag: ${{ inputs.tag }}
+          k8s_cluster_name: ${{ inputs.k8s_cluster_name }}
+          k8s_namespace: ${{ inputs.k8s_namespace }}
+          k8s_deployment_name: ${{ inputs.k8s_deployment_name }}
+          do_api_token: ${{ inputs.do_api_token }}
