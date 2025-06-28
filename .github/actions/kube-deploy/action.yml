@@ -28,7 +28,7 @@ runs:
   using: "composite"
   steps:
     - name: Setup K8s connection
-      uses: ${{ github.repository }}/.github/actions/kube-setup@${{ github.action_ref }}
+      uses: ./workflows/.github/actions/kube-setup
       with:
         k8s_cluster_name: ${{ inputs.k8s_cluster_name }}
         do_api_token: ${{ inputs.do_api_token }}

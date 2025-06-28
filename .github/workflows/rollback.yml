@@ -14,8 +14,15 @@ jobs:
   rollback:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout workflows
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.action_repository }}
+          ref: ${{ github.action_ref }}
+          path: workflows
+
       - name: Setup K8s connection
-        uses: ${{ github.repository }}/.github/actions/kube-setup@${{ github.action_ref }}
+        uses: ./workflows/.github/actions/kube-setup
         with:
           k8s_cluster_name: ${{ secrets.k8s_cluster_name }}
           do_api_token: ${{ secrets.do_api_token }}
