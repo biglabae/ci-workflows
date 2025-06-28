@@ -14,18 +14,14 @@ jobs:
   rollback:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout workflows
-        uses: actions/checkout@v4
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
         with:
-          repository: ${{ github.action_repository }}
-          ref: ${{ github.action_ref }}
-          path: workflows
+          token: ${{ secrets.do_api_token }}
 
-      - name: Setup K8s connection
-        uses: ./workflows/.github/actions/kube-setup
-        with:
-          k8s_cluster_name: ${{ secrets.k8s_cluster_name }}
-          do_api_token: ${{ secrets.do_api_token }}
+      - name: Fetch kubeconfig
+        shell: bash
+        run: doctl kubernetes cluster kubeconfig save ${{ secrets.k8s_cluster_name }}
 
       - name: Set current deployment
         id: meta
