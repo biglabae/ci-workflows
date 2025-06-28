@@ -4,16 +4,13 @@ on:
   workflow_call:
     inputs:
       tag: { required: true, type: string }
+      registry: { required: true, type: string }
+      k8s_cluster_name: { required: true, type: string }
+      k8s_namespace: { required: true, type: string }
+      k8s_deployment_name: { required: true, type: string }
       subprojects: { required: false, type: string }
     secrets:
-      registry: { required: true }
-      k8s_cluster_name: { required: true }
-      k8s_namespace: { required: true }
-      k8s_deployment_name: { required: true }
       do_api_token: { required: true }
-
-env:
-  DOCKERFILE: Dockerfile.production
 
 jobs:
   prepare-matrix:
@@ -46,7 +43,7 @@ jobs:
       - name: Log in to DigitalOcean Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ secrets.registry }}
+          registry: ${{ inputs.registry }}
           username: doctl
           password: ${{ secrets.do_api_token }}
 
@@ -54,17 +51,22 @@ jobs:
         id: meta
         shell: bash
         run: |
+          DOCKERFILE=Dockerfile.production
+
           if [[ "${{ matrix.project }}" == "root" ]]; then
             echo "context=." >> "$GITHUB_OUTPUT"
             echo "dockerfile=${{ env.DOCKERFILE }}" >> "$GITHUB_OUTPUT"
-            echo "image=${{ secrets.registry }}/${{ secrets.k8s_namespace }}/${{ secrets.k8s_deployment_name }}" >> "$GITHUB_OUTPUT"
-            echo "deployment=${{ secrets.k8s_deployment_name }}" >> "$GITHUB_OUTPUT"
+
+            DEPLOYMENT=${{ inputs.k8s_namespace }}
           else
             echo "context=${{ matrix.project }}" >> "$GITHUB_OUTPUT"
             echo "dockerfile=${{ matrix.project }}/${{ env.DOCKERFILE }}" >> "$GITHUB_OUTPUT"
-            echo "image=${{ secrets.registry }}/${{ secrets.k8s_namespace }}/${{ secrets.k8s_deployment_name }}-${{ matrix.project }}" >> "$GITHUB_OUTPUT"
-            echo "deployment=${{ secrets.k8s_deployment_name }}-${{ matrix.project }}" >> "$GITHUB_OUTPUT"
+
+            DEPLOYMENT=${{ inputs.k8s_namespace }}-${{ matrix.project }}
           fi
+
+          echo "image=${{ inputs.registry }}/${{ inputs.k8s_namespace }}/${DEPLOYMENT}" >> "$GITHUB_OUTPUT"
+          echo "deployment=${DEPLOYMENT}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -82,28 +84,28 @@ jobs:
           token: ${{ secrets.do_api_token }}
 
       - name: Fetch kubeconfig
-        run: doctl kubernetes cluster kubeconfig save ${{ secrets.k8s_cluster_name }}
+        run: doctl kubernetes cluster kubeconfig save ${{ inputs.k8s_cluster_name }}
 
       - name: Update Kubernetes deployment
         id: update
         run: |
           kubectl set image deployment/${{ steps.meta.outputs.deployment }} \
             ${{ steps.meta.outputs.deployment }}=${{ steps.meta.outputs.image }}:${{ inputs.tag }} \
-            --namespace=${{ secrets.namespace }}
+            --namespace=${{ inputs.k8s_namespace }}
 
       - name: Wait for rollout to complete
         id: rollout
         continue-on-error: true
         run: |
           kubectl rollout status deployment/${{ steps.meta.outputs.deployment }} \
-            --namespace=${{ secrets.namespace }} --timeout=180s
+            --namespace=${{ inputs.k8s_namespace }} --timeout=180s
 
       - name: Rollback and fail pipeline if rollout failed
         if: steps.rollout.outcome == 'failure'
         run: |
           echo "❌ Rollout failed. Rolling back..."
           kubectl rollout undo deployment/${{ steps.meta.outputs.deployment }} \
-            --namespace=${{ secrets.namespace }}
+            --namespace=${{ inputs.k8s_namespace }}
           echo "❌ Deployment failed and rollback executed."
           exit 1
 

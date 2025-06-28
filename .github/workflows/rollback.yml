@@ -4,10 +4,10 @@ on:
   workflow_call:
     inputs:
       project: { required: false, type: string }
+      k8s_cluster_name: { required: true, type: string }
+      k8s_namespace: { required: true, type: string }
+      k8s_deployment_name: { required: true, type: string }
     secrets:
-      k8s_cluster_name: { required: true }
-      k8s_namespace: { required: true }
-      k8s_deployment_name: { required: true }
       do_api_token: { required: true }
 
 jobs:
@@ -21,19 +21,19 @@ jobs:
 
       - name: Fetch kubeconfig
         shell: bash
-        run: doctl kubernetes cluster kubeconfig save ${{ secrets.k8s_cluster_name }}
+        run: doctl kubernetes cluster kubeconfig save ${{ inputs.k8s_cluster_name }}
 
       - name: Set current deployment
         id: meta
         run: |
           if [[ "${{ inputs.project }}" == "root" ]]; then
-            echo "deployment=${{ secrets.k8s_deployment_name }}" >> "$GITHUB_OUTPUT"
+            echo "deployment=${{ inputs.k8s_deployment_name }}" >> "$GITHUB_OUTPUT"
           else
-            echo "deployment=${{ secrets.k8s_deployment_name }}-${{ inputs.project }}" >> "$GITHUB_OUTPUT"
+            echo "deployment=${{ inputs.k8s_deployment_name }}-${{ inputs.project }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Rollback to previous revision
         run: |
           echo "⚠️ Manual rollback initiated"
           kubectl rollout undo deployment/${{ steps.meta.outputs.deployment }} \
-            --namespace=${{ secrets.k8s_namespace }}
+            --namespace=${{ inputs.k8s_namespace }}
