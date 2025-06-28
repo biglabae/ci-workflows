@@ -6,7 +6,7 @@ on:
       project: { required: false, type: string, default: "root" }
       k8s_cluster_name: { required: true, type: string }
       k8s_namespace: { required: true, type: string }
-      k8s_deployment_name: { required: true, type: string }
+      k8s_deployment_name: { required: false, type: string }
     secrets:
       do_api_token: { required: true }
 
@@ -26,10 +26,16 @@ jobs:
       - name: Set current deployment
         id: meta
         run: |
-          if [[ "${{ inputs.project }}" == "root" ]]; then
-            echo "deployment=${{ inputs.k8s_deployment_name }}" >> "$GITHUB_OUTPUT"
+          if [[ "${{ inputs.k8s_deployment_name }}" == "" ]]; then
+            DEPLOYMENT=$(basename "${GITHUB_REPOSITORY}")
           else
-            echo "deployment=${{ inputs.k8s_deployment_name }}-${{ inputs.project }}" >> "$GITHUB_OUTPUT"
+            DEPLOYMENT=${{ inputs.k8s_deployment_name }}
+          fi
+
+          if [[ "${{ inputs.project }}" == "root" ]]; then
+            echo "deployment=${DEPLOYMENT}" >> "$GITHUB_OUTPUT"
+          else
+            echo "deployment=${DEPLOYMENT}-${{ inputs.project }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Rollback to previous revision

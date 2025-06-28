@@ -6,8 +6,10 @@ on:
       registry: { required: true, type: string }
       k8s_cluster_name: { required: true, type: string }
       k8s_namespace: { required: true, type: string }
-      k8s_deployment_name: { required: true, type: string }
+      k8s_deployment_name: { required: false, type: string }
       subprojects: { required: false, type: string }
+      build_env: { required: false, type: string }
+      build_env_filename: { required: false, type: string, default: ".env" }
     secrets:
       do_api_token: { required: true }
 
@@ -52,16 +54,20 @@ jobs:
         run: |
           DOCKERFILE=Dockerfile.production
 
+          if [[ "${{ inputs.k8s_deployment_name }}" == "" ]]; then
+            DEPLOYMENT=$(basename "${GITHUB_REPOSITORY}")
+          else
+            DEPLOYMENT=${{ inputs.k8s_deployment_name }}
+          fi
+
           if [[ "${{ matrix.project }}" == "root" ]]; then
             echo "context=." >> "$GITHUB_OUTPUT"
             echo "dockerfile=${DOCKERFILE}" >> "$GITHUB_OUTPUT"
-
-            DEPLOYMENT=${{ inputs.k8s_deployment_name }}
           else
             echo "context=${{ matrix.project }}" >> "$GITHUB_OUTPUT"
             echo "dockerfile=${{ matrix.project }}/${DOCKERFILE}" >> "$GITHUB_OUTPUT"
 
-            DEPLOYMENT=${{ inputs.k8s_deployment_name }}-${{ matrix.project }}
+            DEPLOYMENT=${DEPLOYMENT}-${{ matrix.project }}
           fi
 
           echo "image=${{ inputs.registry }}/${{ inputs.k8s_namespace }}/${DEPLOYMENT}" >> "$GITHUB_OUTPUT"
@@ -75,6 +81,11 @@ jobs:
           else
             echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Populate .env for build
+        if: ${{ inputs.build_env != '' }}
+        run: |
+          printf "%s" "${{ inputs.build_env }}" > ${{ steps.meta.outputs.context }}/${{ inputs.build_env_filename }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
