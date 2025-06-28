@@ -34,6 +34,16 @@ jobs:
 
       - name: Rollback to previous revision
         run: |
-          echo "⚠️ Manual rollback initiated"
           kubectl rollout undo deployment/${{ steps.meta.outputs.deployment }} \
             --namespace=${{ inputs.k8s_namespace }}
+
+      - name: Wait for rollout to complete
+        id: rollout
+        continue-on-error: true
+        run: |
+          kubectl rollout status deployment/${{ steps.meta.outputs.deployment }} \
+            --namespace=${{ inputs.k8s_namespace }} --timeout=180s
+
+      - name: Notify success
+        if: steps.rollout.outcome == 'success'
+        run: echo "↩️ Deployment ${{ steps.meta.outputs.deployment }} rollback."

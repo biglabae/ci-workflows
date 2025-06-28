@@ -87,7 +87,6 @@ jobs:
         run: doctl kubernetes cluster kubeconfig save ${{ inputs.k8s_cluster_name }}
 
       - name: Update Kubernetes deployment
-        id: update
         run: |
           kubectl set image deployment/${{ steps.meta.outputs.deployment }} \
             ${{ steps.meta.outputs.deployment }}=${{ steps.meta.outputs.image }}:${{ inputs.tag }} \
@@ -100,13 +99,17 @@ jobs:
           kubectl rollout status deployment/${{ steps.meta.outputs.deployment }} \
             --namespace=${{ inputs.k8s_namespace }} --timeout=180s
 
-      - name: Rollback and fail pipeline if rollout failed
+      - name: Rollback if rollout failed
         if: steps.rollout.outcome == 'failure'
         run: |
-          echo "❌ Rollout failed. Rolling back..."
           kubectl rollout undo deployment/${{ steps.meta.outputs.deployment }} \
             --namespace=${{ inputs.k8s_namespace }}
-          echo "❌ Deployment failed and rollback executed."
+
+      - name: Wait for rollback rollout to complete and fail pipeline
+        if: steps.rollout.outcome == 'failure'
+        run: |
+          kubectl rollout status deployment/${{ steps.meta.outputs.deployment }} \
+            --namespace=${{ inputs.k8s_namespace }} --timeout=180s
           exit 1
 
       - name: Notify success
