@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Setup K8s connection
-        uses: ./.github/actions/kube-setup
+        uses: ${{ github.repository }}/.github/actions/kube-setup@${{ github.action_ref }}
         with:
           k8s_cluster_name: ${{ secrets.k8s_cluster_name }}
           do_api_token: ${{ secrets.do_api_token }}

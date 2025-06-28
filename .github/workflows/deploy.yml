@@ -40,7 +40,7 @@ jobs:
     steps:
       - name: Build and push Docker image for ${{ matrix.project }}
         id: build
-        uses: ./.github/actions/docker-buildx
+        uses: ${{ github.repository }}/.github/actions/docker-buildx@${{ github.action_ref }}
         with:
           project: ${{ matrix.project }}
           registry: ${{ secrets.registry }}
@@ -49,7 +49,7 @@ jobs:
           do_api_token: ${{ secrets.do_api_token }}
 
       - name: Deploy Docker image for ${{ matrix.project }}
-        uses: ./.github/actions/kube-deploy
+        uses: ${{ github.repository }}/.github/actions/kube-deploy@${{ github.action_ref }}
         with:
           project: ${{ matrix.project }}
           image: ${{ steps.build.outputs.image }}
