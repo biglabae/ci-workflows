@@ -3,7 +3,7 @@ name: Rollback Kubernetes deployment
 on:
   workflow_call:
     inputs:
-      project: { required: false, type: string }
+      project: { required: false, type: string, default: "root" }
       k8s_cluster_name: { required: true, type: string }
       k8s_namespace: { required: true, type: string }
       k8s_deployment_name: { required: true, type: string }
