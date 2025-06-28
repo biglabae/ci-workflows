@@ -55,14 +55,14 @@ jobs:
 
           if [[ "${{ matrix.project }}" == "root" ]]; then
             echo "context=." >> "$GITHUB_OUTPUT"
-            echo "dockerfile=${{ env.DOCKERFILE }}" >> "$GITHUB_OUTPUT"
+            echo "dockerfile=${DOCKERFILE}" >> "$GITHUB_OUTPUT"
 
-            DEPLOYMENT=${{ inputs.k8s_namespace }}
+            DEPLOYMENT=${{ inputs.k8s_deployment_name }}
           else
             echo "context=${{ matrix.project }}" >> "$GITHUB_OUTPUT"
-            echo "dockerfile=${{ matrix.project }}/${{ env.DOCKERFILE }}" >> "$GITHUB_OUTPUT"
+            echo "dockerfile=${{ matrix.project }}/${DOCKERFILE}" >> "$GITHUB_OUTPUT"
 
-            DEPLOYMENT=${{ inputs.k8s_namespace }}-${{ matrix.project }}
+            DEPLOYMENT=${{ inputs.k8s_deployment_name }}-${{ matrix.project }}
           fi
 
           echo "image=${{ inputs.registry }}/${{ inputs.k8s_namespace }}/${DEPLOYMENT}" >> "$GITHUB_OUTPUT"
