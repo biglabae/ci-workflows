@@ -37,20 +37,20 @@ jobs:
       matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
       fail-fast: false
     steps:
-      - name: Checkout code for ${{ matrix.project }}
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx for ${{ matrix.project }}
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to DigitalOcean Container Registry for ${{ matrix.project }}
+      - name: Log in to DigitalOcean Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ secrets.registry }}
           username: doctl
           password: ${{ secrets.do_api_token }}
 
-      - name: Set project context and Dockerfile path for ${{ matrix.project }}
+      - name: Set project context and Dockerfile path
         id: meta
         shell: bash
         run: |
@@ -66,39 +66,39 @@ jobs:
             echo "deployment=${{ secrets.k8s_deployment_name }}-${{ matrix.project }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build and push Docker image for ${{ matrix.project }}
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: code/${{ steps.meta.outputs.context }}
+          context: ${{ steps.meta.outputs.context }}
           file: ${{ steps.meta.outputs.dockerfile }}
           push: true
           tags: ${{ steps.meta.outputs.image }}:${{ inputs.tag }}
           cache-from: type=registry,ref=${{ steps.meta.outputs.image }}:buildcache
           cache-to: type=registry,ref=${{ steps.meta.outputs.image }}:buildcache,mode=max
 
-      - name: Install doctl for ${{ matrix.project }}
+      - name: Install doctl
         uses: digitalocean/action-doctl@v2
         with:
           token: ${{ secrets.do_api_token }}
 
-      - name: Fetch kubeconfig for ${{ matrix.project }}
+      - name: Fetch kubeconfig
         run: doctl kubernetes cluster kubeconfig save ${{ secrets.k8s_cluster_name }}
 
-      - name: Update Kubernetes deployment for ${{ matrix.project }}
+      - name: Update Kubernetes deployment
         id: update
         run: |
           kubectl set image deployment/${{ steps.meta.outputs.deployment }} \
             ${{ steps.meta.outputs.deployment }}=${{ steps.meta.outputs.image }}:${{ inputs.tag }} \
             --namespace=${{ secrets.namespace }}
 
-      - name: Wait for rollout to complete for ${{ matrix.project }}
+      - name: Wait for rollout to complete
         id: rollout
         continue-on-error: true
         run: |
           kubectl rollout status deployment/${{ steps.meta.outputs.deployment }} \
             --namespace=${{ secrets.namespace }} --timeout=180s
 
-      - name: Rollback and fail pipeline if rollout failed for ${{ matrix.project }}
+      - name: Rollback and fail pipeline if rollout failed
         if: steps.rollout.outcome == 'failure'
         run: |
           echo "❌ Rollout failed. Rolling back..."
@@ -107,6 +107,6 @@ jobs:
           echo "❌ Deployment failed and rollback executed."
           exit 1
 
-      - name: Notify success for ${{ matrix.project }}
+      - name: Notify success
         if: steps.rollout.outcome == 'success'
         run: echo "✅ Deployment ${{ steps.meta.outputs.deployment }} succeeded."
