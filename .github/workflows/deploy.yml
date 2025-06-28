@@ -3,7 +3,6 @@ name: Build and Deploy to Kubernetes
 on:
   workflow_call:
     inputs:
-      tag: { required: true, type: string }
       registry: { required: true, type: string }
       k8s_cluster_name: { required: true, type: string }
       k8s_namespace: { required: true, type: string }
@@ -68,13 +67,22 @@ jobs:
           echo "image=${{ inputs.registry }}/${{ inputs.k8s_namespace }}/${DEPLOYMENT}" >> "$GITHUB_OUTPUT"
           echo "deployment=${DEPLOYMENT}" >> "$GITHUB_OUTPUT"
 
+      - name: Set image tag
+        id: set-tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: ${{ steps.meta.outputs.context }}
           file: ${{ steps.meta.outputs.dockerfile }}
           push: true
-          tags: ${{ steps.meta.outputs.image }}:${{ inputs.tag }}
+          tags: ${{ steps.meta.outputs.image }}:${{ steps.set-tag.outputs.tag }}
           cache-from: type=registry,ref=${{ steps.meta.outputs.image }}:buildcache
           cache-to: type=registry,ref=${{ steps.meta.outputs.image }}:buildcache,mode=max
 
@@ -89,7 +97,7 @@ jobs:
       - name: Update Kubernetes deployment
         run: |
           kubectl set image deployment/${{ steps.meta.outputs.deployment }} \
-            ${{ steps.meta.outputs.deployment }}=${{ steps.meta.outputs.image }}:${{ inputs.tag }} \
+            ${{ steps.meta.outputs.deployment }}=${{ steps.meta.outputs.image }}:${{ steps.set-tag.outputs.tag }} \
             --namespace=${{ inputs.k8s_namespace }}
 
       - name: Wait for rollout to complete
