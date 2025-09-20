@@ -24,7 +24,7 @@ jobs:
           if [[ -z "${{ inputs.subprojects }}" || "${{ inputs.subprojects }}" == "" ]]; then
             echo 'matrix={"project":["root"]}' >> $GITHUB_OUTPUT
           else
-            matrix=$(echo "${{ inputs.subprojects }}" | jq -R '{project: (split(","))}')
+            matrix=$(echo "${{ inputs.subprojects }}" | jq -Rc '{project: (split(","))}')
             echo "matrix=$matrix" >> $GITHUB_OUTPUT
           fi
 
