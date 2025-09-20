@@ -8,6 +8,7 @@ on:
       k8s_namespace: { required: true, type: string }
       k8s_deployment_name: { required: false, type: string }
       subprojects: { required: false, type: string }
+      dockerfile: { required: false, type: string, default: "Dockerfile.production" }
       build_env: { required: false, type: string }
       build_env_filename: { required: false, type: string, default: ".env" }
     secrets:
@@ -52,8 +53,6 @@ jobs:
         id: meta
         shell: bash
         run: |
-          DOCKERFILE=Dockerfile.production
-
           if [[ "${{ inputs.k8s_deployment_name }}" == "" ]]; then
             DEPLOYMENT=$(basename "${GITHUB_REPOSITORY}")
           else
@@ -62,10 +61,10 @@ jobs:
 
           if [[ "${{ matrix.project }}" == "root" ]]; then
             echo "context=." >> "$GITHUB_OUTPUT"
-            echo "dockerfile=${DOCKERFILE}" >> "$GITHUB_OUTPUT"
+            echo "dockerfile=${{ inputs.dockerfile }}" >> "$GITHUB_OUTPUT"
           else
             echo "context=${{ matrix.project }}" >> "$GITHUB_OUTPUT"
-            echo "dockerfile=${{ matrix.project }}/${DOCKERFILE}" >> "$GITHUB_OUTPUT"
+            echo "dockerfile=${{ matrix.project }}/${{ inputs.dockerfile }}" >> "$GITHUB_OUTPUT"
 
             DEPLOYMENT=${DEPLOYMENT}-${{ matrix.project }}
           fi
