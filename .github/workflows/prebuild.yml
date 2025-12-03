@@ -4,6 +4,7 @@ on:
   workflow_call:
     inputs:
       registry: { required: true, type: string }
+      k8s_namespace: { required: true, type: string }
       k8s_deployment_name: { required: false, type: string }
       build_env: { required: false, type: string }
       build_env_filename: { required: false, type: string, default: ".env" }
