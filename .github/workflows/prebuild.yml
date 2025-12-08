@@ -29,6 +29,15 @@ jobs:
           username: doctl
           password: ${{ secrets.do_api_token }}
 
+      - name: Set image tag
+        id: set-tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set project context and Dockerfile path
         id: meta
         shell: bash
@@ -44,15 +53,6 @@ jobs:
           echo "context=." >> "$GITHUB_OUTPUT"
           echo "dockerfile=${DOCKERFILE}" >> "$GITHUB_OUTPUT"
           echo "image=${{ inputs.registry }}/${{ inputs.k8s_namespace }}/${DEPLOYMENT}" >> "$GITHUB_OUTPUT"
-
-      - name: Set image tag
-        id: set-tag
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Populate .env for build
         if: ${{ inputs.build_env != '' }}
