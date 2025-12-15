@@ -118,6 +118,7 @@ jobs:
 
       - name: Apply new job
         run: |
+          kubectl delete job ${{ steps.meta.outputs.job }} --namespace=${{ inputs.k8s_namespace }} --ignore-not-found
           kubectl apply -f job.yaml --namespace=${{ inputs.k8s_namespace }}
 
       - name: Wait for job completion
