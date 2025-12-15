@@ -94,8 +94,26 @@ jobs:
 
       - name: Patch job spec with new name and image
         run: |
-          yq e ".metadata.name = \"${{ steps.meta.outputs.job }}\"" -i job.yaml
-          yq e ".spec.template.spec.containers[0].image = \"${{ steps.meta.outputs.image }}:${{ steps.set-tag.outputs.tag }}\"" -i job.yaml
+          yq e '
+            .metadata.name = "${{ steps.meta.outputs.job }}" |
+            .spec.template.spec.containers[0].image = "${{ steps.meta.outputs.image }}:${{ steps.set-tag.outputs.tag }}" |
+
+            del(
+              .metadata.uid,
+              .metadata.resourceVersion,
+              .metadata.creationTimestamp,
+              .metadata.managedFields,
+              .metadata.ownerReferences,
+              .status,
+              .spec.selector,
+              .spec.template.metadata.labels."job-name",
+              .spec.template.metadata.labels."batch.kubernetes.io/job-name",
+              .spec.template.metadata.labels."controller-uid",
+              .spec.template.metadata.labels."batch.kubernetes.io/controller-uid"
+            ) |
+
+            .spec.ttlSecondsAfterFinished = 3600
+          ' -i job.yaml
 
       - name: Apply new job
         run: |
