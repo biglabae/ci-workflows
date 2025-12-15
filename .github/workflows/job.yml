@@ -97,6 +97,7 @@ jobs:
           yq e '
             .metadata.name = "${{ steps.meta.outputs.job }}" |
             .spec.template.spec.containers[0].image = "${{ steps.meta.outputs.image }}:${{ steps.set-tag.outputs.tag }}" |
+            .spec.template.spec.containers[0].command = ["sh", "-c", "sleep 1d"]" |
 
             del(
               .metadata.uid,
