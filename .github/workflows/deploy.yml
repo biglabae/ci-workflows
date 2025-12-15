@@ -11,6 +11,8 @@ on:
       dockerfile: { required: false, type: string, default: "Dockerfile.production" }
       build_env: { required: false, type: string }
       build_env_filename: { required: false, type: string, default: ".env" }
+      build_args: { required: false, type: string, default: "" }
+      prebuild: { required: false, type: boolean, default: false }
     secrets:
       do_api_token: { required: true }
 
@@ -49,6 +51,15 @@ jobs:
           username: doctl
           password: ${{ secrets.do_api_token }}
 
+      - name: Set image tag
+        id: set-tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set project context and Dockerfile path
         id: meta
         shell: bash
@@ -58,6 +69,8 @@ jobs:
           else
             DEPLOYMENT=${{ inputs.k8s_deployment_name }}
           fi
+
+          BASE_DEPLOYMENT=$DEPLOYMENT
 
           if [[ "${{ matrix.project }}" == "root" ]]; then
             echo "context=." >> "$GITHUB_OUTPUT"
@@ -72,14 +85,14 @@ jobs:
           echo "image=${{ inputs.registry }}/${{ inputs.k8s_namespace }}/${DEPLOYMENT}" >> "$GITHUB_OUTPUT"
           echo "deployment=${DEPLOYMENT}" >> "$GITHUB_OUTPUT"
 
-      - name: Set image tag
-        id: set-tag
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-          fi
+          {
+            echo "build_args<<BUILDARGSEOF"
+            echo "${{ inputs.build_args }}"
+            if ${{ inputs.prebuild }}; then
+              echo "PREBUILD_IMAGE=${{ inputs.registry }}/${{ inputs.k8s_namespace }}/${BASE_DEPLOYMENT}:${{ steps.set-tag.outputs.tag }}"
+            fi
+            echo "BUILDARGSEOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Populate .env for build
         if: ${{ inputs.build_env != '' }}
@@ -91,6 +104,7 @@ jobs:
         with:
           context: ${{ steps.meta.outputs.context }}
           file: ${{ steps.meta.outputs.dockerfile }}
+          build-args: ${{ steps.meta.outputs.build_args }}
           push: true
           tags: ${{ steps.meta.outputs.image }}:${{ steps.set-tag.outputs.tag }}
           cache-from: type=registry,ref=${{ steps.meta.outputs.image }}:buildcache
