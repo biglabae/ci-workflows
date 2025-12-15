@@ -1,0 +1,117 @@
+name: Build and Deploy to Kubernetes
+
+on:
+  workflow_call:
+    inputs:
+      registry: { required: true, type: string }
+      k8s_cluster_name: { required: true, type: string }
+      k8s_namespace: { required: true, type: string }
+      k8s_job_name: { required: false, type: string }
+      job: { required: true, type: string }
+      build_args: { required: false, type: string, default: "" }
+      prebuild: { required: false, type: boolean, default: false }
+    secrets:
+      do_api_token: { required: true }
+
+jobs:
+  prebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to DigitalOcean Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.registry }}
+          username: doctl
+          password: ${{ secrets.do_api_token }}
+
+      - name: Set image tag
+        id: set-tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set project context and Dockerfile path
+        id: meta
+        shell: bash
+        run: |
+          DOCKERFILE=${{ inputs.job }}/Dockerfile.production
+
+          if [[ "${{ inputs.k8s_job_name }}" == "" ]]; then
+            BASE_IMAGE=$(basename "${GITHUB_REPOSITORY}")
+          else
+            BASE_IMAGE=${{ inputs.k8s_job_name }}
+          fi
+
+          BASE_JOB=${BASE_IMAGE}-${{ inputs.job }}
+          JOB=${BASE_JOB}-${{ steps.set-tag.outputs.tag }}
+
+          echo "context=${{ inputs.job }}" >> "$GITHUB_OUTPUT"
+          echo "dockerfile=${DOCKERFILE}" >> "$GITHUB_OUTPUT"
+          echo "image=${{ inputs.registry }}/${{ inputs.k8s_namespace }}/${JOB}" >> "$GITHUB_OUTPUT"
+          echo "base_job=${BASE_JOB}" >> "$GITHUB_OUTPUT"
+          echo "job=${JOB}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "build_args<<BUILDARGSEOF"
+            echo "${{ inputs.build_args }}"
+            if ${{ inputs.prebuild }}; then
+              echo "PREBUILD_IMAGE=${{ inputs.registry }}/${{ inputs.k8s_namespace }}/${BASE_IMAGE}:${{ steps.set-tag.outputs.tag }}"
+            fi
+            echo "BUILDARGSEOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ steps.meta.outputs.context }}
+          file: ${{ steps.meta.outputs.dockerfile }}
+          build-args: ${{ steps.meta.outputs.build_args }}
+          push: true
+          tags: ${{ steps.meta.outputs.image }}:${{ steps.set-tag.outputs.tag }}
+          cache-from: type=registry,ref=${{ steps.meta.outputs.image }}:buildcache
+          cache-to: type=registry,ref=${{ steps.meta.outputs.image }}:buildcache,mode=max
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.do_api_token }}
+
+      - name: Fetch kubeconfig
+        run: doctl kubernetes cluster kubeconfig save ${{ inputs.k8s_cluster_name }}
+
+      - name: Get existing job spec
+        run: |
+          kubectl get job ${{ steps.meta.outputs.base_job }} --namespace=${{ inputs.k8s_namespace }} -o yaml > job.yaml
+
+      - name: Patch job spec with new name and image
+        run: |
+          yq e ".metadata.name = \"${{ steps.meta.outputs.job }}\"" -i job.yaml
+          yq e ".spec.template.spec.containers[0].image = \"${{ steps.meta.outputs.image }}:${{ steps.set-tag.outputs.tag }}\"" -i job.yaml
+
+      - name: Apply new job
+        run: |
+          kubectl apply -f job.yaml --namespace=${{ inputs.k8s_namespace }}
+
+      - name: Wait for job completion
+        id: runjob
+        continue-on-error: true
+        run: |
+          kubectl wait --for=condition=complete job/${{ steps.meta.outputs.job }} \
+            --namespace=${{ inputs.k8s_namespace }} --timeout=180s
+
+      - name: Stream job logs
+        run: |
+          kubectl logs job/${{ steps.meta.outputs.job }} --namespace=${{ inputs.k8s_namespace }}
+
+      - name: Fail pipeline if job not complete
+        if: steps.runjob.outcome == 'failure'
+        run: exit 1
