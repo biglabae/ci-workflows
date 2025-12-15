@@ -14,7 +14,7 @@ on:
       do_api_token: { required: true }
 
 jobs:
-  prebuild:
+  job:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
