@@ -129,7 +129,7 @@ jobs:
         continue-on-error: true
         run: |
           kubectl rollout status deployment/${{ steps.meta.outputs.deployment }} \
-            --namespace=${{ inputs.k8s_namespace }} --timeout=180s
+            --namespace=${{ inputs.k8s_namespace }} --timeout=600s
 
       - name: Rollback if rollout failed
         if: steps.rollout.outcome == 'failure'
@@ -141,7 +141,7 @@ jobs:
         if: steps.rollout.outcome == 'failure'
         run: |
           kubectl rollout status deployment/${{ steps.meta.outputs.deployment }} \
-            --namespace=${{ inputs.k8s_namespace }} --timeout=180s
+            --namespace=${{ inputs.k8s_namespace }} --timeout=600s
           exit 1
 
       - name: Notify success
