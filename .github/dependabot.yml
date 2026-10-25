@@ -1,0 +1,7 @@
+# Раз в месяц предлагает обновить действия GitHub Actions (они закреплены по SHA).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

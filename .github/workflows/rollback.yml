@@ -10,12 +10,15 @@ on:
     secrets:
       do_api_token: { required: true }
 
+permissions:
+  contents: read
+
 jobs:
   rollback:
     runs-on: ubuntu-latest
     steps:
       - name: Install doctl
-        uses: digitalocean/action-doctl@v2
+        uses: digitalocean/action-doctl@3cb3953159719656269e044e0e24ca16dd2a690f # v2.5.2
         with:
           token: ${{ secrets.do_api_token }}
 
